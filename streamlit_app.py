@@ -3,7 +3,7 @@
 
 ### An application for ...
 
-## streamlit run "C:\Users\Jack\Documents\Python_projects\streamlit_apps\parli_pollingplace_dashboard\scatter_app.py"
+## streamlit run "C:\Users\Jack\Documents\Python_projects\streamlit_apps\parli_scatterplotter\streamlit_app.py"
 
 ### --------------------------------------- IMPORTS 
 
@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from scipy import stats
 
 import customChartDefaultStyling
 
@@ -69,7 +70,7 @@ def select_census_data_allcols(g):
 
 st.markdown("**Open Investigation Tools** | [constituent.online](%s)" % 'http://www.constituent.online')
     
-st.title('Scatterplotter - 2022 Australian Election')
+st.title('Parli Scatterplotter - 2022 Australian Election')
 st.write("Explore that factors that might have influenced a party\'s vote.")
 
 
@@ -129,7 +130,8 @@ def make_scatter_firstpref_vs_(x_col_party, y_col, marker_color):
 
     df_x = df_MAIN.loc[(df_MAIN['PartyNm'] == x_col_party) & (df_MAIN['CountNum'] == 0) & (df_MAIN['CalculationType'] == 'Preference Percent')][['DivisionNm', 'PartyNm', 'CountNum', 'CalculationType', 'CalculationValue']]
     df_plot = df_x.merge(df_YOPTIONS, on = 'DivisionNm', how = 'outer')
-        
+    df_plot = df_plot[['DivisionNm', 'StateAb', 'CalculationValue', y_col]].dropna()      
+
     correlation = round(df_plot[['CalculationValue', y_col]].corr().values[1,0], 4)
     correlation_strength = 'None' if abs(correlation) < 0.15 else 'Very Weak' if abs(correlation) < 0.3 else 'Weak' if abs(correlation) < 0.5 else 'Moderate' if abs(correlation) < 0.7 else 'Strong'
                 
@@ -155,12 +157,27 @@ def make_scatter_firstpref_vs_(x_col_party, y_col, marker_color):
         )
     )
 
-
-    fig.update_layout(title = f'<b><span style = "font-family: Inter">{x_col_party}</b> <span style = "color: silver; font-weight: normal; font-family: Inter"> Correlation: {correlation_strength} ({correlation})</span><br><sup><span style = "font-weight: normal">2022 Australia election</span></span></sup>')
+    
+    ### ADD TREND LINE
+    slope, intercept, r, p, std_err = stats.linregress(df_plot['CalculationValue'], df_plot[y_col])
+    def myfunc(x):
+      return slope * x + intercept
+    model_data = list(map(myfunc, df_plot['CalculationValue']))
+    fig.add_trace(
+        go.Scatter(
+            mode = 'lines',
+            x=df_plot['CalculationValue'],
+            y=model_data, 
+            line_shape='linear',
+            line = dict(color = 'rgba(0,200,22,0.33)')
+        )
+    )
+    
+    fig.update_layout(title = f'<b><span style = "font-family: Inter">{x_col_party}</b> <span style = "font-weight: normal"> {y_col} <span style = "color: silver"> Correlation: {correlation_strength} ({correlation})</span></span><br><sup><span style = "font-weight: normal">2022 Australia election</span></span></sup>')
     customChartDefaultStyling.styling(fig)
     fig.update_xaxes(title = f'<b><span style = "font-size: 10px">{x_col_party} first preferences (%)</span></b>',)
     fig.update_yaxes(title = f'<b><span style = "font-size: 10px; font-family: Inter">{ y_col.replace("Percentage"," (%)").replace("Percent"," (%)")}</span></b>',)
-    fig.update_layout(width = 500, height = 500)
+    fig.update_layout(width = 500, height = 500,showlegend = False)
 
     
     st.plotly_chart(fig, use_container_width=True)
